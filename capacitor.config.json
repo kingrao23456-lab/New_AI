@@ -1,0 +1,16 @@
+{
+  "appId": "com.zoya.ai.assistant",
+  "appName": "Zoya AI Assistant",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#09090b",
+      "showSpinner": false
+    }
+  }
+}
