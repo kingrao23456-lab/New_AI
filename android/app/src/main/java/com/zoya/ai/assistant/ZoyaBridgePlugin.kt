@@ -48,15 +48,18 @@ class ZoyaBridgePlugin : Plugin() {
 
     override fun load() {
         super.load()
-        AutomationEngine.init(context)
-        AutomationEngine.get().resetCancellation()
-        bridge.activity?.let { AutomationEngine.get().setActivity(it) }
-        Companion.captureController = CaptureController(context) { intent ->
-            val call = capturePendingCall
-            if (call != null) {
-                startActivityForResult(call, intent, REQUEST_CAPTURE)
+        // Defensive: never let a startup failure crash the host activity.
+        runCatching {
+            AutomationEngine.init(context)
+            AutomationEngine.get().resetCancellation()
+            bridge.activity?.let { AutomationEngine.get().setActivity(it) }
+            Companion.captureController = CaptureController(context) { intent ->
+                val call = capturePendingCall
+                if (call != null) {
+                    startActivityForResult(call, intent, REQUEST_CAPTURE)
+                }
             }
-        }
+        }.onFailure { Log.e(TAG, "Engine init failed", it) }
     }
 
     override fun handleOnActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
