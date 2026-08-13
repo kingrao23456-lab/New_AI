@@ -71,8 +71,12 @@ class ZoyaBridgePlugin : Plugin() {
 
     private fun resolve(call: PluginCall, result: AutomationResult) {
         if (call.isReleased()) return
+        // AutomationResult.toJson() returns a plain org.json.JSONObject, but
+        // Capacitor requires a JSObject. Build one explicitly (a checked cast
+        // would throw ClassCastException for non-ok results).
+        val data = JSObject(result.toJson().toString())
         if (result.ok) {
-            call.resolve(result.toJson() as JSObject)
+            call.resolve(data)
         } else {
             val err = JSObject()
             if (result.errorCode != null) err.put("code", result.errorCode)
@@ -80,7 +84,7 @@ class ZoyaBridgePlugin : Plugin() {
             call.reject(
                 result.errorMessage ?: result.status.name,
                 result.errorCode ?: result.status.name,
-                result.toJson() as JSObject
+                data
             )
         }
     }
