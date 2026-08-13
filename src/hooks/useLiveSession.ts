@@ -288,59 +288,33 @@ export function useLiveSession() {
                   const appName = (call.args as any).appName;
                   const action = (call.args as any).action || "open";
 
-                  // App launcher URLs / deep links map
-                  const appUrls: Record<string, string> = {
-                    whatsapp: "https://web.whatsapp.com",
-                    instagram: "https://www.instagram.com",
-                    youtube: "https://www.youtube.com",
-                    spotify: "https://open.spotify.com",
-                    chrome: "https://www.google.com",
-                    tiktok: "https://www.tiktok.com",
-                    maps: "https://maps.google.com",
-                    settings: "chrome://settings"
+                  const runLaunch = async (): Promise<{ success: boolean; message: string; packageName?: string }> => {
+                    if (isNative()) {
+                      // The user explicitly asked to open this app, so the
+                      // request itself is the consent. Resolve + launch is done
+                      // natively so we never fall back to opening a website.
+                      const r = await NativeApi.launchAppByName(appName, true);
+                      if (r.ok) {
+                        const pkg = (r.data as any)?.packageName;
+                        return { success: true, message: `Opened ${appName} (${pkg ?? "installed app"})`, packageName: pkg };
+                      }
+                      return { success: false, message: `Could not open ${appName}: ${r.error?.message ?? "app not found"}` };
+                    }
+                    return { success: false, message: `Cannot open ${appName}: not running on Android.` };
                   };
 
-                  const resolveNative = async (): Promise<string | null> => {
-                    if (!isNative()) return null;
-                    // Native engine first: resolve app by name via installed-app list.
-                    const listed = await NativeApi.listApps(appName);
-                    if (listed.ok) {
-                      const apps = (listed.data as any)?.apps as Array<{ packageName: string; name: string }> | undefined;
-                      const match = apps?.find((a) => a.name.toLowerCase().includes(appName.toLowerCase()));
-                      if (match) return match.packageName;
+                  runLaunch().then(async (outcome) => {
+                    if (outcome.success) {
+                      window.dispatchEvent(new CustomEvent("zoya_app_action", {
+                        detail: { type: "launch_app", appName, action, packageName: outcome.packageName }
+                      }));
                     }
-                    return null;
-                  };
-
-                  resolveNative().then(async (pkg) => {
-                    if (pkg) {
-                      const r = await NativeApi.launchApp(pkg, appName);
-                      sessionPromise.then(session => {
-                        session.sendToolResponse({
-                          functionResponses: [
-                            {
-                              name: "launchAndroidApp",
-                              response: r.ok
-                                ? { success: true, message: `Successfully launched ${appName} via the native Android engine.`, packageName: pkg }
-                                : { success: false, message: `Could not launch ${appName} natively: [${r.status}] ${r.error?.message ?? "unknown error"}` },
-                              id: call.id
-                            }
-                          ]
-                        });
-                      });
-                      return;
-                    }
-                    const targetUrl = appUrls[appName.toLowerCase()] || `https://www.google.com/search?q=${encodeURIComponent(appName)}`;
-                    window.open(targetUrl, "_blank");
-                    window.dispatchEvent(new CustomEvent("zoya_app_action", {
-                      detail: { type: "launch_app", appName, action }
-                    }));
                     sessionPromise.then(session => {
                       session.sendToolResponse({
                         functionResponses: [
                           {
                             name: "launchAndroidApp",
-                            response: { success: true, message: `Successfully launched ${appName} via Android Accessibility & Intent handler.` },
+                            response: { success: outcome.success, message: outcome.message },
                             id: call.id
                           }
                         ]

@@ -135,6 +135,61 @@ class AppManager(private val context: Context) {
         }
     }
 
+    /**
+     * Resolves an app by its label or package name (case-insensitive) and
+     * launches it. Preference order: exact package name → exact label →
+     * contains match on label or package. This keeps name resolution fully
+     * on the native side so the web layer never falls back to a web page.
+     */
+    fun launchAppByName(name: String): AutomationResult {
+        val pm = context.packageManager
+        val q = name.trim().lowercase()
+        if (q.isEmpty()) {
+            return AutomationResult.failure("MISSING_ARGUMENT", "App name is required.")
+        }
+
+        // 1. The name may already be an installed package.
+        if (pm.getLaunchIntentForPackage(q) != null) {
+            return launchApp(q)
+        }
+
+        // 2. Match against the launcher app list.
+        val resolveInfos = try {
+            pm.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
+                0
+            )
+        } catch (e: Exception) {
+            emptyList<android.content.pm.ResolveInfo>()
+        }
+
+        var best: String? = null
+        var exactFound = false
+        for (ri in resolveInfos) {
+            val pkg = ri.activityInfo.packageName
+            val label = try { ri.loadLabel(pm).toString() } catch (e: Exception) { pkg }
+            val lq = label.lowercase()
+            val pq = pkg.lowercase()
+            val exact = lq == q || pq == q
+            if (exact) {
+                best = pkg
+                exactFound = true
+                break
+            }
+            if (!exactFound && (lq.contains(q) || pq.contains(q)) && best == null) {
+                best = pkg
+            }
+        }
+
+        if (best != null) {
+            return launchApp(best)
+        }
+        return AutomationResult.failure(
+            "APP_NOT_FOUND",
+            "No installed app found matching '$name'. Ask the user to install it or try a different name."
+        )
+    }
+
     /** Opens the app-info page for an installed app. */
     fun openAppInfo(packageName: String): AutomationResult {
         return try {

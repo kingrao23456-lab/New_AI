@@ -335,6 +335,7 @@ class AutomationEngine private constructor(private val appContext: Context) {
 
             // ---- apps ----
             "launchApp" -> appManager.launchApp(args["packageName"]?.toString() ?: "")
+            "launchAppByName" -> appManager.launchAppByName(args["name"]?.toString() ?: "")
             "listApps" -> appManager.listApps(args["query"]?.toString())
             "currentApp" -> appManager.currentApp()
             "openAppInfo" -> appManager.openAppInfo(args["packageName"]?.toString() ?: "")

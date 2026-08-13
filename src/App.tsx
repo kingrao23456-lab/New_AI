@@ -14,6 +14,7 @@ import { VoicePersonaModal } from "./components/VoicePersonaModal";
 import { NativeAutomationModal } from "./components/NativeAutomationModal";
 import { SetupWizard } from "./components/SetupWizard";
 import { isNative as isNativePlatform } from "./native";
+import { NativeApi } from "./native";
 
 const Visualizer = ({ active, color }: { active: boolean; color: string }) => {
   return (
@@ -382,13 +383,26 @@ export default function App() {
     }
   };
 
-  const simulateAppLaunch = (app: AndroidAppItem) => {
+  const simulateAppLaunch = async (app: AndroidAppItem) => {
     setActionToast({
       title: `Testing ${app.name} Voice Trigger`,
       subtitle: `Opening ${app.name} via Accessibility Service...`
     });
-    setTimeout(() => setActionToast(null), 3500);
-    window.open(app.url, "_blank");
+    try {
+      if (isNativeApp) {
+        // Launch the actual installed app natively instead of opening a web page.
+        const r = await NativeApi.launchAppByName(app.id, true);
+        setActionToast({
+          title: r.ok ? `Opened ${app.name}` : `Could not open ${app.name}`,
+          subtitle: r.ok ? "Native app launched." : (r.error?.message ?? "App not found on this device.")
+        });
+      } else {
+        window.open(app.url, "_blank");
+        setActionToast({ title: `Opened ${app.name}`, subtitle: "Web version opened in a new tab." });
+      }
+    } finally {
+      setTimeout(() => setActionToast(null), 3500);
+    }
   };
 
   return (

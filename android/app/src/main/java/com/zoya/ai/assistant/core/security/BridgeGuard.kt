@@ -24,6 +24,7 @@ object BridgeGuard {
         "typeText",
         // App control
         "launchApp",
+        "launchAppByName",
         "stopApp",
         "openSettingsPage",
         "openAppPermissions",

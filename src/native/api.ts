@@ -190,6 +190,10 @@ export const NativeApi = {
     return execute('launchApp', { packageName, appName });
   },
 
+  async launchAppByName(name: string, consent = false): Promise<BridgeResult<{ packageName: string; label: string }>> {
+    return execute('launchAppByName', { name }, consent);
+  },
+
   async listApps(query?: string): Promise<BridgeResult<{ apps: AppInfo[]; count: number }>> {
     return execute('listApps', { query });
   },
