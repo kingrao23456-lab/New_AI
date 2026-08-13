@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Zoya AI Assistant</string>
+    <string name="title_activity_main">Zoya AI Assistant</string>
+    <string name="package_name">com.zoya.ai.assistant</string>
+    <string name="custom_url_scheme">com.zoya.ai.assistant</string>
+    <string name="accessibility_service_label">Zoya AI Assistant</string>
+    <string name="accessibility_service_description">Allows Zoya to read on-screen content, control authorized apps and execute gestures you request. Zoya only acts on your explicit voice or button commands.</string>
+</resources>

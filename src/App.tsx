@@ -6,11 +6,14 @@ import {
   Play, MousePointerClick, ArrowUp, ArrowDown, Settings, Globe, MessageCircle,
   Eye, Zap, RefreshCw, ChevronRight, Shield, Camera, Upload, ImageIcon,
   Download, DownloadCloud, Package, Share2, Brain, History,
-  User, Users, Volume2, Heart, Smile
+  User, Users, Volume2, Heart, Smile, Settings2
 } from "lucide-react";
 import { useLiveSession } from "./hooks/useLiveSession";
 import { MemoryModal } from "./components/MemoryModal";
 import { VoicePersonaModal } from "./components/VoicePersonaModal";
+import { NativeAutomationModal } from "./components/NativeAutomationModal";
+import { SetupWizard } from "./components/SetupWizard";
+import { isNative as isNativePlatform } from "./native";
 
 const Visualizer = ({ active, color }: { active: boolean; color: string }) => {
   return (
@@ -104,6 +107,9 @@ export default function App() {
   const [showApkModal, setShowApkModal] = useState(false);
   const [showMemoryModal, setShowMemoryModal] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [showNativeModal, setShowNativeModal] = useState(false);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
+  const [isNativeApp] = useState(isNativePlatform);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   
@@ -121,6 +127,18 @@ export default function App() {
 
   // Toast notifications for voice-triggered app control
   const [actionToast, setActionToast] = useState<{ title: string; subtitle: string } | null>(null);
+
+  // First-launch setup wizard (native only; re-openable later)
+  useEffect(() => {
+    if (!isNativeApp) return;
+    try {
+      const done = localStorage.getItem("zoya_setup_done") === "1";
+      if (!done) setShowSetupWizard(true);
+    } catch {
+      // storage unavailable — show once
+      setShowSetupWizard(true);
+    }
+  }, [isNativeApp]);
 
   useEffect(() => {
     const handleBeforeInstall = (e: Event) => {
@@ -454,6 +472,31 @@ export default function App() {
             <Download className="w-3.5 h-3.5 text-pink-400 animate-bounce" />
             <span className="hidden sm:inline">APK</span>
           </button>
+
+          <button
+            onClick={() => setShowNativeModal(true)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors backdrop-blur-md text-xs font-semibold ${
+              isNativeApp
+                ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300"
+                : "bg-white/5 border-white/10 hover:bg-white/10 text-zinc-300"
+            }`}
+            title="Native Android Automation Engine: permissions, gestures, OCR & tasks"
+          >
+            <Settings2 className={`w-3.5 h-3.5 ${isNativeApp ? "text-emerald-400" : "text-zinc-400"}`} />
+            <span className="hidden sm:inline">Automation</span>
+            {isNativeApp && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+          </button>
+
+          {isNativeApp && (
+            <button
+              onClick={() => setShowSetupWizard(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition-colors backdrop-blur-md text-xs font-semibold"
+              title="Re-open the first-launch permission setup wizard"
+            >
+              <Settings2 className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Setup</span>
+            </button>
+          )}
 
           <button
             onClick={() => setShowKeyModal(true)}
@@ -1127,6 +1170,21 @@ export default function App() {
         onClose={() => setShowVoiceModal(false)}
         currentPersona={voicePersona}
         onSelectPersona={setVoicePersona}
+      />
+      {/* Native Automation Engine Modal */}
+      <NativeAutomationModal isOpen={showNativeModal} onClose={() => setShowNativeModal(false)} />
+      {/* First-launch setup wizard (native) */}
+      <SetupWizard
+        isOpen={showSetupWizard}
+        onClose={() => setShowSetupWizard(false)}
+        onDone={() => {
+          setShowSetupWizard(false);
+          try {
+            localStorage.setItem("zoya_setup_done", "1");
+          } catch {
+            // ignore
+          }
+        }}
       />
     </div>
   );

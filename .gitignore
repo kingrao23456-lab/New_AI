@@ -6,3 +6,16 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Android / Gradle build artifacts
+android/.gradle/
+android/local.properties
+android/app/.cxx/
+android/app/build/
+android/build/
+android/captures/
+.idea/
+*.iml
+.kotlin/
+.gradle/
+.cxx/

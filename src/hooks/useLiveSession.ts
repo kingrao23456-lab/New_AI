@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { GoogleGenAI, LiveServerMessage, Modality, Type } from "@google/genai";
 import { AudioStreamer } from "../lib/audio-streamer";
 import { getMemoryBank, getChatHistory, addMemoryItem, addChatSession } from "../lib/memory";
+import { NativeApi, execute, isNative } from "../native";
 
 const DEVELOPER_INSTRUCTION = `
 IMPORTANT INFORMATION ABOUT YOUR CREATOR:
@@ -286,7 +287,7 @@ export function useLiveSession() {
                 } else if (call.name === "launchAndroidApp") {
                   const appName = (call.args as any).appName;
                   const action = (call.args as any).action || "open";
-                  
+
                   // App launcher URLs / deep links map
                   const appUrls: Record<string, string> = {
                     whatsapp: "https://web.whatsapp.com",
@@ -298,48 +299,92 @@ export function useLiveSession() {
                     maps: "https://maps.google.com",
                     settings: "chrome://settings"
                   };
-                  
-                  const targetUrl = appUrls[appName.toLowerCase()] || `https://www.google.com/search?q=${encodeURIComponent(appName)}`;
-                  window.open(targetUrl, "_blank");
-                  
-                  // Dispatch custom event for UI feedback
-                  window.dispatchEvent(new CustomEvent("zoya_app_action", {
-                    detail: { type: "launch_app", appName, action }
-                  }));
 
-                  sessionPromise.then(session => {
-                    session.sendToolResponse({
-                      functionResponses: [
-                        {
-                          name: "launchAndroidApp",
-                          response: { success: true, message: `Successfully launched ${appName} via Android Accessibility & Intent handler.` },
-                          id: call.id
-                        }
-                      ]
+                  const resolveNative = async (): Promise<string | null> => {
+                    if (!isNative()) return null;
+                    // Native engine first: resolve app by name via installed-app list.
+                    const listed = await NativeApi.listApps(appName);
+                    if (listed.ok) {
+                      const apps = (listed.data as any)?.apps as Array<{ packageName: string; name: string }> | undefined;
+                      const match = apps?.find((a) => a.name.toLowerCase().includes(appName.toLowerCase()));
+                      if (match) return match.packageName;
+                    }
+                    return null;
+                  };
+
+                  resolveNative().then(async (pkg) => {
+                    if (pkg) {
+                      const r = await NativeApi.launchApp(pkg, appName);
+                      sessionPromise.then(session => {
+                        session.sendToolResponse({
+                          functionResponses: [
+                            {
+                              name: "launchAndroidApp",
+                              response: r.ok
+                                ? { success: true, message: `Successfully launched ${appName} via the native Android engine.`, packageName: pkg }
+                                : { success: false, message: `Could not launch ${appName} natively: [${r.status}] ${r.error?.message ?? "unknown error"}` },
+                              id: call.id
+                            }
+                          ]
+                        });
+                      });
+                      return;
+                    }
+                    const targetUrl = appUrls[appName.toLowerCase()] || `https://www.google.com/search?q=${encodeURIComponent(appName)}`;
+                    window.open(targetUrl, "_blank");
+                    window.dispatchEvent(new CustomEvent("zoya_app_action", {
+                      detail: { type: "launch_app", appName, action }
+                    }));
+                    sessionPromise.then(session => {
+                      session.sendToolResponse({
+                        functionResponses: [
+                          {
+                            name: "launchAndroidApp",
+                            response: { success: true, message: `Successfully launched ${appName} via Android Accessibility & Intent handler.` },
+                            id: call.id
+                          }
+                        ]
+                      });
                     });
                   });
                 } else if (call.name === "controlScreenAction") {
                   const action = (call.args as any).action;
-                  
-                  if (action === "scroll_down") {
-                    window.scrollBy({ top: 400, behavior: "smooth" });
-                  } else if (action === "scroll_up") {
-                    window.scrollBy({ top: -400, behavior: "smooth" });
-                  }
-                  
+
+                  const runControl = async (): Promise<{ success: boolean; message: string }> => {
+                    if (isNative()) {
+                      let r;
+                      if (action === "scroll_down") r = await NativeApi.scroll("down");
+                      else if (action === "scroll_up") r = await NativeApi.scroll("up");
+                      else if (action === "tap_back" || action === "go_home" || action === "take_screenshot" || action === "read_screen") {
+                        const global = action === "tap_back" ? "back" : action === "go_home" ? "home" : action === "take_screenshot" ? "screenshot" : "notifications";
+                        r = await execute("globalAction", { action: global });
+                      } else {
+                        r = await execute("globalAction", { action });
+                      }
+                      return r.ok
+                        ? { success: true, message: `Executed native screen action: ${action}` }
+                        : { success: false, message: `Native screen action failed: [${r.status}] ${r.error?.message ?? "unknown error"}` };
+                    }
+                    if (action === "scroll_down") window.scrollBy({ top: 400, behavior: "smooth" });
+                    else if (action === "scroll_up") window.scrollBy({ top: -400, behavior: "smooth" });
+                    return { success: true, message: `Executed screen gesture: ${action}` };
+                  };
+
                   window.dispatchEvent(new CustomEvent("zoya_app_action", {
                     detail: { type: "screen_control", action }
                   }));
 
-                  sessionPromise.then(session => {
-                    session.sendToolResponse({
-                      functionResponses: [
-                        {
-                          name: "controlScreenAction",
-                          response: { success: true, message: `Executed screen gesture: ${action}` },
-                          id: call.id
-                        }
-                      ]
+                  runControl().then((out) => {
+                    sessionPromise.then(session => {
+                      session.sendToolResponse({
+                        functionResponses: [
+                          {
+                            name: "controlScreenAction",
+                            response: out,
+                            id: call.id
+                          }
+                        ]
+                      });
                     });
                   });
                 } else if (call.name === "readScreen") {
@@ -347,18 +392,30 @@ export function useLiveSession() {
                     detail: { type: "read_screen", action: "analyzing" }
                   }));
 
-                  sessionPromise.then(session => {
-                    session.sendToolResponse({
-                      functionResponses: [
-                        {
-                          name: "readScreen",
-                          response: { 
-                            success: true, 
-                            message: "Active screen frame is being captured and streamed live to vision engine. Read the text/content directly from the video stream." 
-                          },
-                          id: call.id
-                        }
-                      ]
+                  const runRead = async (): Promise<{ success: boolean; message: string }> => {
+                    if (isNative()) {
+                      const r = await NativeApi.readScreenText();
+                      if (r.ok) {
+                        const text = (r.data as any)?.text ?? "";
+                        const clipped = text.length > 3000 ? text.slice(0, 3000) + "..." : text;
+                        return { success: true, message: `Screen text:\n${clipped || "(no text found on screen)"}` };
+                      }
+                      return { success: false, message: `Could not read screen natively: [${r.status}] ${r.error?.message ?? "unknown error"}` };
+                    }
+                    return { success: true, message: "Active screen frame is being captured and streamed live to vision engine. Read the text/content directly from the video stream." };
+                  };
+
+                  runRead().then((out) => {
+                    sessionPromise.then(session => {
+                      session.sendToolResponse({
+                        functionResponses: [
+                          {
+                            name: "readScreen",
+                            response: out,
+                            id: call.id
+                          }
+                        ]
+                      });
                     });
                   });
                 }
