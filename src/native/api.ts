@@ -398,6 +398,10 @@ export const NativeApi = {
     return execute('getExecutionLogs', { limit });
   },
 
+  async exportLogs(): Promise<BridgeResult<{ path: string; size: number; entries: number }>> {
+    return execute('exportLogs');
+  },
+
   async clearExecutionLogs(): Promise<BridgeResult<{ cleared: boolean }>> {
     return execute('clearExecutionLogs');
   },

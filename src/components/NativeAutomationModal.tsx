@@ -32,6 +32,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Play,
+  Download,
 } from "lucide-react";
 import { NativeApi, isNative, onLogEvent, biometricAuth } from "../native";
 import type { BridgeResult, PermissionStates, RecordedGesture } from "../native";
@@ -226,6 +227,22 @@ export function NativeAutomationModal({ isOpen, onClose }: NativeAutomationModal
   const clearLogs = async () => {
     const r = await NativeApi.clearExecutionLogs();
     if (r.ok) setLogs([]);
+  };
+
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [exportOk, setExportOk] = useState(true);
+
+  const exportLogs = async () => {
+    setExportMessage(null);
+    const r = await NativeApi.exportLogs();
+    if (r.ok) {
+      const path = (r.data as any)?.path;
+      setExportOk(true);
+      setExportMessage(`Log file created. Share it via the Android share sheet that just opened. Path: ${path ?? "see device files"}`);
+    } else {
+      setExportOk(false);
+      setExportMessage(`Export failed: ${r.error?.message ?? "unknown error"}`);
+    }
   };
 
   const toggleSync = async (enabled: boolean) => {
@@ -565,13 +582,27 @@ export function NativeAutomationModal({ isOpen, onClose }: NativeAutomationModal
                 <ScrollText className="w-4 h-4 text-cyan-400" />
                 <span>Real-time Automation Logs ({logs.length})</span>
               </h4>
-              <button
-                onClick={clearLogs}
-                className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 text-zinc-300 border border-white/10 hover:bg-white/10 transition-colors flex items-center gap-1.5"
-              >
-                <Trash2 className="w-3 h-3 text-red-400" /> Clear
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={exportLogs}
+                  disabled={busy !== null}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center gap-1.5 disabled:opacity-40"
+                >
+                  <Download className="w-3 h-3" /> Export TXT
+                </button>
+                <button
+                  onClick={clearLogs}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-white/5 text-zinc-300 border border-white/10 hover:bg-white/10 transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3 h-3 text-red-400" /> Clear
+                </button>
+              </div>
             </div>
+            {exportMessage && (
+              <p className={`text-[11px] px-3 py-2 rounded-lg border ${exportOk ? "text-emerald-300 border-emerald-500/20 bg-emerald-500/5" : "text-red-300 border-red-500/20 bg-red-500/5"}`}>
+                {exportMessage}
+              </p>
+            )}
             <div className="space-y-1.5 max-h-80 overflow-y-auto">
               {logs.length === 0 && <p className="text-[11px] text-zinc-500">No log entries yet. Run an automation action to see live entries here.</p>}
               {logs.map((entry, i) => {

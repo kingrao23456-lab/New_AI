@@ -396,6 +396,7 @@ class AutomationEngine private constructor(private val appContext: Context) {
             "getAutomationStatus" -> getAutomationStatus()
             "getDeviceCapabilities" -> deviceCapabilities()
             "getExecutionLogs" -> getExecutionLogs(args)
+            "exportLogs" -> exportLogs()
             "clearExecutionLogs" -> {
                 logStore.clear()
                 AutomationResult.success(JSONObject().put("cleared", true))
@@ -1034,6 +1035,49 @@ class AutomationEngine private constructor(private val appContext: Context) {
                 logStore.recent(limit).forEach { put(it) }
             }).put("count", logStore.recent(limit).size)
         )
+    }
+
+    /** Writes the automation log to a shareable TXT file and returns its path. */
+    fun exportLogs(): AutomationResult {
+        return try {
+            val logs = logStore.recent(500)
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+            val sb = StringBuilder()
+            sb.appendLine("Zoya AI Assistant - Automation Log Export")
+            sb.appendLine("Generated: ${fmt.format(java.util.Date())}")
+            sb.appendLine("Device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+            sb.appendLine("Android: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
+            sb.appendLine("App: ${appContext.packageName}")
+            sb.appendLine("Accessibility: ${ZoyaAccessibilityService.isEnabled(appContext)}")
+            sb.appendLine("Overlay: ${android.provider.Settings.canDrawOverlays(appContext)}")
+            sb.appendLine("================================================================")
+            sb.appendLine()
+            if (logs.isEmpty()) {
+                sb.appendLine("(no automation log entries yet)")
+            } else {
+                val tf = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US)
+                for (e in logs) {
+                    val ts = e.optLong("ts", 0L)
+                    val time = if (ts > 0) tf.format(java.util.Date(ts)) else "--"
+                    val cmd = e.optString("command", "")
+                    val detail = e.optString("detail", "")
+                    sb.appendLine("[$time] [${e.optString("level")}] [${e.optString("phase")}] $cmd $detail".trimEnd())
+                    e.optJSONObject("data")?.let { sb.appendLine("      data: ${it.toString()}") }
+                }
+            }
+            val dir = java.io.File(appContext.getExternalFilesDir(null), "logs").apply { mkdirs() }
+            val file = java.io.File(dir, "zoya_logs_${System.currentTimeMillis()}.txt")
+            file.writeText(sb.toString())
+            AutomationResult.success(
+                JSONObject().apply {
+                    put("path", file.absolutePath)
+                    put("size", file.length())
+                    put("entries", logs.size)
+                }
+            )
+        } catch (e: Exception) {
+            AutomationResult.failure("EXPORT_FAILED", "Failed to export logs: ${e.message}")
+        }
     }
 
     private fun permissionStatusCommand(): AutomationResult {

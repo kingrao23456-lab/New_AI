@@ -233,6 +233,38 @@ class ZoyaBridgePlugin : Plugin() {
         call.resolve(JSObject().put("stopped", true))
     }
 
+    /**
+     * Writes the automation log to a TXT file and opens the Android share
+     * sheet so the user can send it (e.g. for debugging support).
+     */
+    @PluginMethod
+    fun exportLogs(call: PluginCall) {
+        val result = engine.exportLogs()
+        if (result.ok) {
+            val data = result.toJson().optJSONObject("data")
+            val path = data?.optString("path")
+            if (path != null) {
+                runCatching {
+                    val file = java.io.File(path)
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        context, context.packageName + ".fileprovider", file
+                    )
+                    val share = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_SUBJECT, "Zoya automation logs")
+                        putExtra(Intent.EXTRA_TEXT, "Zoya AI Assistant - automation log export")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    val chooser = Intent.createChooser(share, "Share Zoya logs")
+                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(chooser)
+                }.onFailure { Log.e(TAG, "Share failed", it) }
+            }
+        }
+        resolve(call, result)
+    }
+
     // ------------------------------------------------------------------
     // Task / workflow status events
     // ------------------------------------------------------------------

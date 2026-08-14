@@ -4,4 +4,5 @@
     <cache-path name="my_cache_images" path="." />
     <files-path name="zoya_media" path="media/" />
     <files-path name="zoya_gestures" path="gestures/" />
+    <external-files-path name="zoya_logs" path="logs/" />
 </paths>
