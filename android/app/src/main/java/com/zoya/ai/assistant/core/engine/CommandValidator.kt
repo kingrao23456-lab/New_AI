@@ -84,6 +84,10 @@ object CommandValidator {
                 Validation.ok()
             }
 
+            "exportLogs" -> {
+                Validation.ok()
+            }
+
             else -> {
                 // Unknown commands are rejected outright rather than executed blindly.
                 Validation.invalid(
