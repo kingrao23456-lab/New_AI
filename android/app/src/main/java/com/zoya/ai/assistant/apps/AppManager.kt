@@ -124,7 +124,38 @@ class AppManager(private val context: Context) {
                 return AutomationResult.failure("APP_NOT_FOUND", "No launcher intent found for '$packageName'.")
             }
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val beforePackage = com.zoya.ai.assistant.accessibility.ZoyaAccessibilityService
+                .instance?.screenContext?.currentPackage
             context.startActivity(launchIntent)
+
+            // Some OEM skins (MIUI/ColorOS/etc) silently block background
+            // activity starts unless the app has extra "autostart" / "pop-up
+            // while running in background" permission granted. startActivity()
+            // does not throw in that case, so verify the foreground app
+            // actually changed before reporting success.
+            var switched = false
+            var lastSeen: String? = beforePackage
+            repeat(10) {
+                Thread.sleep(200)
+                val nowPackage = com.zoya.ai.assistant.accessibility.ZoyaAccessibilityService
+                    .instance?.screenContext?.currentPackage
+                lastSeen = nowPackage
+                if (nowPackage == packageName) {
+                    switched = true
+                    return@repeat
+                }
+            }
+
+            if (!switched) {
+                return AutomationResult.blocked(
+                    "LAUNCH_NOT_CONFIRMED",
+                    "Launch intent for '$packageName' was sent but the app never came to the foreground " +
+                        "(still on '${lastSeen ?: "unknown"}'). On MIUI/Xiaomi devices this usually means " +
+                        "'Autostart' or 'Display pop-up windows while running in background' is disabled for " +
+                        "Zoya in Settings > Apps > Permissions > Other permissions."
+                )
+            }
+
             AutomationResult.success(data = JSONObject().apply {
                 put("packageName", packageName)
                 put("label", labelFor(packageName) ?: packageName)

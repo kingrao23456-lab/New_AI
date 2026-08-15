@@ -191,13 +191,25 @@ export function useLiveSession() {
                 },
                 {
                   name: "controlScreenAction",
-                  description: "Executes an Android Accessibility service gesture or screen action over other apps.",
+                  description: "Executes an Android Accessibility service gesture or screen action over other apps. Prefer 'click_text' to tap any button/link/item by its visible label instead of guessing coordinates. Use 'tap_at' / 'long_press_at' only with exact x/y pixel coordinates you already have (e.g. from a prior readScreen result). Use 'type_text' to type into whichever field is currently focused (tap it first with 'click_text' if needed). Use 'search_text' to search within the current app or browser page.",
                   parameters: {
                     type: Type.OBJECT,
                     properties: {
                       action: {
                         type: Type.STRING,
-                        description: "Action type: 'scroll_down', 'scroll_up', 'tap_back', 'go_home', 'read_screen', 'take_screenshot'."
+                        description: "One of: 'scroll_down', 'scroll_up', 'tap_back', 'go_home', 'take_screenshot', 'tap_at', 'long_press_at', 'click_text', 'type_text', 'search_text'."
+                      },
+                      x: {
+                        type: Type.NUMBER,
+                        description: "X pixel coordinate. Required for 'tap_at' and 'long_press_at'."
+                      },
+                      y: {
+                        type: Type.NUMBER,
+                        description: "Y pixel coordinate. Required for 'tap_at' and 'long_press_at'."
+                      },
+                      text: {
+                        type: Type.STRING,
+                        description: "For 'click_text': the visible label/text of the item to tap. For 'type_text': the text to type. For 'search_text': the search query."
                       }
                     },
                     required: ["action"]
@@ -323,6 +335,9 @@ export function useLiveSession() {
                   });
                 } else if (call.name === "controlScreenAction") {
                   const action = (call.args as any).action;
+                  const argX = (call.args as any).x;
+                  const argY = (call.args as any).y;
+                  const argText = (call.args as any).text;
 
                   const runControl = async (): Promise<{ success: boolean; message: string }> => {
                     if (isNative()) {
@@ -332,6 +347,16 @@ export function useLiveSession() {
                       else if (action === "tap_back" || action === "go_home" || action === "take_screenshot" || action === "read_screen") {
                         const global = action === "tap_back" ? "back" : action === "go_home" ? "home" : action === "take_screenshot" ? "screenshot" : "notifications";
                         r = await execute("globalAction", { action: global });
+                      } else if (action === "tap_at") {
+                        r = await execute("tapCoordinate", { x: argX, y: argY });
+                      } else if (action === "long_press_at") {
+                        r = await execute("longPressCoordinate", { x: argX, y: argY });
+                      } else if (action === "click_text") {
+                        r = await execute("clickElement", { partialText: argText });
+                      } else if (action === "type_text") {
+                        r = await execute("typeText", { text: argText });
+                      } else if (action === "search_text") {
+                        r = await execute("searchInBrowser", { query: argText });
                       } else {
                         r = await execute("globalAction", { action });
                       }

@@ -864,7 +864,7 @@ class AutomationEngine private constructor(private val appContext: Context) {
     // ------------------------------------------------------------------
 
     private fun ocrScreen(): AutomationResult {
-        // Accessibility text first (highest fidelity), OCR fallback.
+        // Accessibility text first (highest fidelity, fastest).
         val svc = ZoyaAccessibilityService.instance
         val root = svc?.screenContext?.getRoot()
         if (root != null) {
@@ -885,7 +885,29 @@ class AutomationEngine private constructor(private val appContext: Context) {
                 return AutomationResult.success(data)
             }
         }
-        return AutomationResult.failure("NO_TEXT", "No visible text found on screen.")
+
+        // Accessibility tree had nothing usable (custom-drawn UI, video,
+        // WebView canvas content, etc). Fall back to real bitmap OCR via
+        // ML Kit, which requires the screen-capture (MediaProjection)
+        // service to already be running.
+        if (!com.zoya.ai.assistant.vision.ScreenCaptureService.isCapturing()) {
+            return AutomationResult.blocked(
+                "CAPTURE_NOT_STARTED",
+                "No text found via accessibility, and screen capture isn't running for OCR fallback. Start screen capture first."
+            )
+        }
+
+        val ocrResult = OcrEngine.awaitSingleFrame()
+        if (ocrResult.ok) {
+            val text = ocrResult.data?.optString("text").orEmpty()
+            if (text.isNotBlank()) {
+                svc?.screenContext?.setOcrText(text)
+                ocrResult.data?.put("source", "ocr")
+                return ocrResult
+            }
+            return AutomationResult.failure("NO_TEXT", "No visible text found on screen.")
+        }
+        return ocrResult
     }
 
     private fun visualDetect(): AutomationResult {
