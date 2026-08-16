@@ -53,6 +53,9 @@ class ZoyaBridgePlugin : Plugin() {
             com.zoya.ai.assistant.automation.AutomationRegistry.register(
                 com.zoya.ai.assistant.automation.apps.WhatsAppAutomation()
             )
+            com.zoya.ai.assistant.automation.AutomationRegistry.registerDefault(
+                com.zoya.ai.assistant.automation.apps.DefaultAutomation()
+            )
             AutomationEngine.init(context)
             AutomationEngine.get().resetCancellation()
             bridge.activity?.let { AutomationEngine.get().setActivity(it) }

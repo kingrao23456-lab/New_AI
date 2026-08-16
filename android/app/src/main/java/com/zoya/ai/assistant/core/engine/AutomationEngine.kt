@@ -292,6 +292,7 @@ class AutomationEngine private constructor(private val appContext: Context) {
         "listApps", "currentApp",
         "accessibilityStatus", "screenCaptureStatus", "cameraPermissionStatus",
         "micPermissionStatus", "microphoneStatus", "getScreenContext",
+        "recognizeText", "readScreenText", "ocrScreen", "performOCR", "visualDetect",
         "setBrightness", "getBrightness", "setVolume", "getVolume",
         "openAccessibilitySettings", "openBatterySettings",
         "openNotificationSettings", "openAppInfo", "openAppPermissions"
@@ -328,6 +329,10 @@ class AutomationEngine private constructor(private val appContext: Context) {
             "No automation is configured yet for '${currentPackage ?: "this app"}' (command '$command')."
         )
     }
+
+    @Suppress("unused")
+    fun runLegacyDispatch(command: String, args: Map<String, Any?>, timeoutMs: Long): AutomationResult =
+        legacyDispatch(command, args, timeoutMs)
 
     @Suppress("unused")
     private fun legacyDispatch(command: String, args: Map<String, Any?>, timeoutMs: Long): AutomationResult {

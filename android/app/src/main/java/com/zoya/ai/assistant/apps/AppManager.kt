@@ -135,8 +135,11 @@ class AppManager(private val context: Context) {
             // actually changed before reporting success.
             var switched = false
             var lastSeen: String? = beforePackage
-            repeat(10) {
-                Thread.sleep(200)
+            // Cold app starts on heavily-skinned OEM ROMs (MIUI etc) can take
+            // several seconds, so give this a generous window rather than
+            // reporting a false failure for an app that's simply slow to open.
+            repeat(30) {
+                Thread.sleep(300)
                 val nowPackage = com.zoya.ai.assistant.accessibility.ZoyaAccessibilityService
                     .instance?.screenContext?.currentPackage
                 lastSeen = nowPackage
