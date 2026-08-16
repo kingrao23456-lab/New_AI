@@ -28,4 +28,15 @@ object AutomationRegistry {
         if (packageName == null) return default
         return perApp[packageName] ?: default
     }
+
+    /**
+     * Scans every registered per-app automation for one that declares it
+     * handles [command], regardless of which app is currently in the
+     * foreground. Needed for "open the app" style commands (e.g.
+     * openWhatsApp) which must work even before that app is on screen —
+     * at that point the foreground app is whatever the user is currently
+     * in, not the target app, so a foreground-package lookup would miss it.
+     */
+    fun anyHandling(command: String): AppAutomation? =
+        perApp.values.firstOrNull { it.handles(command) } ?: default?.takeIf { it.handles(command) }
 }

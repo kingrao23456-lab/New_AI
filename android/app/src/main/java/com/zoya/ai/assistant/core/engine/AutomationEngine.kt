@@ -270,19 +270,56 @@ class AutomationEngine private constructor(private val appContext: Context) {
     // Command dispatcher
     // ------------------------------------------------------------------
 
+    /**
+     * Commands that are Zoya's own system/utility functions (logs, permission
+     * status, sync, task/workflow management, gesture library management,
+     * device status) rather than "automate some app's on-screen UI". These
+     * always run through the original engine and are never gated behind a
+     * per-app automation file — only foreground-UI interaction commands are.
+     */
+    private val systemCommands = setOf(
+        "getAutomationStatus", "getDeviceCapabilities", "getExecutionLogs",
+        "exportLogs", "clearExecutionLogs", "getPermissionStatus",
+        "getSecurityStatus", "isBiometricAvailable", "biometricStatus",
+        "startAutomation", "stopAutomation", "getActiveWorkflow",
+        "getSyncStatus", "setSyncEnabled", "setSyncEndpoint", "syncNow",
+        "createTask", "scheduleTask", "listTasks", "updateTask", "deleteTask",
+        "cancelTask", "enableTask", "disableTask", "taskHistory", "executeTask",
+        "saveWorkflow", "listWorkflows", "getWorkflow", "workflowVersions",
+        "restoreWorkflowVersion", "deleteWorkflow",
+        "listGestures", "getGesture", "saveGesture", "renameGesture",
+        "duplicateGesture", "deleteGesture", "importGesture", "exportGesture",
+        "listApps", "currentApp",
+        "accessibilityStatus", "screenCaptureStatus", "cameraPermissionStatus",
+        "micPermissionStatus", "microphoneStatus", "getScreenContext",
+        "setBrightness", "getBrightness", "setVolume", "getVolume",
+        "openAccessibilitySettings", "openBatterySettings",
+        "openNotificationSettings", "openAppInfo", "openAppPermissions"
+    )
+
     private fun dispatch(command: String, args: Map<String, Any?>, timeoutMs: Long): AutomationResult {
         if (cancelled.get()) {
             return AutomationResult.cancelled("Operation cancelled.")
         }
 
-        // All generic automation has been disabled. Every command must be
-        // handled by a per-app AppAutomation registered in AutomationRegistry
-        // for the app currently in the foreground. Until a dedicated file
-        // exists for an app (or the default fallback automation is added),
-        // commands for that app return NO_AUTOMATION.
+        // Zoya's own system/utility commands are never gated behind per-app
+        // automation — they don't automate any app's screen.
+        if (command in systemCommands) {
+            return legacyDispatch(command, args, timeoutMs)
+        }
+
+        // Everything else is "automate an app's on-screen UI". This is only
+        // allowed via a per-app AppAutomation registered in
+        // AutomationRegistry (or the default fallback, once added).
         val currentPackage = ZoyaAccessibilityService.instance?.screenContext?.currentPackage
-        val appAutomation = com.zoya.ai.assistant.automation.AutomationRegistry.forPackage(currentPackage)
-        if (appAutomation != null && appAutomation.handles(command)) {
+        val registry = com.zoya.ai.assistant.automation.AutomationRegistry
+        val appAutomation = registry.forPackage(currentPackage)?.takeIf { it.handles(command) }
+            // "Open this app" style commands run before that app is in the
+            // foreground, so the foreground-package lookup above will miss —
+            // fall back to scanning every registered automation for a handler.
+            ?: registry.anyHandling(command)
+
+        if (appAutomation != null) {
             return appAutomation.execute(this, command, args, timeoutMs)
         }
 
