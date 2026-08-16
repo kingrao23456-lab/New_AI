@@ -274,6 +274,29 @@ class AutomationEngine private constructor(private val appContext: Context) {
         if (cancelled.get()) {
             return AutomationResult.cancelled("Operation cancelled.")
         }
+
+        // All generic automation has been disabled. Every command must be
+        // handled by a per-app AppAutomation registered in AutomationRegistry
+        // for the app currently in the foreground. Until a dedicated file
+        // exists for an app (or the default fallback automation is added),
+        // commands for that app return NO_AUTOMATION.
+        val currentPackage = ZoyaAccessibilityService.instance?.screenContext?.currentPackage
+        val appAutomation = com.zoya.ai.assistant.automation.AutomationRegistry.forPackage(currentPackage)
+        if (appAutomation != null && appAutomation.handles(command)) {
+            return appAutomation.execute(this, command, args, timeoutMs)
+        }
+
+        return AutomationResult.blocked(
+            "NO_AUTOMATION",
+            "No automation is configured yet for '${currentPackage ?: "this app"}' (command '$command')."
+        )
+    }
+
+    @Suppress("unused")
+    private fun legacyDispatch(command: String, args: Map<String, Any?>, timeoutMs: Long): AutomationResult {
+        if (cancelled.get()) {
+            return AutomationResult.cancelled("Operation cancelled.")
+        }
         return when (command) {
             // ---- element discovery & interaction ----
             "findElement" -> findElement(args)
