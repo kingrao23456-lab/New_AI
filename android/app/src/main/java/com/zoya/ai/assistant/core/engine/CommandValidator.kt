@@ -5,6 +5,11 @@ import com.zoya.ai.assistant.core.model.AutomationResult
 /**
  * Validates command arguments before execution. Commands with missing or
  * malformed arguments are blocked and never executed.
+ *
+ * IMPORTANT: every command name handled anywhere (AutomationEngine's
+ * dispatch, or a per-app AppAutomation like WhatsAppAutomation) must have a
+ * corresponding branch here (even if it's just Validation.ok()), otherwise
+ * it gets rejected as UNKNOWN_COMMAND before it ever reaches execution.
  */
 object CommandValidator {
 
@@ -20,9 +25,11 @@ object CommandValidator {
 
     fun validate(command: String, args: Map<String, Any?>): Validation {
         return when (command) {
+            // ---- element discovery & interaction (need a selector) ----
             "findElement", "findElements", "clickElement", "longClickElement",
             "getElementInfo", "isElementPresent", "waitForElement",
-            "focusElement", "clearElement" -> {
+            "focusElement", "clearElement", "toggleElement", "setChecked",
+            "scrollElement", "dismissElement" -> {
                 requireSelector(args)
             }
 
@@ -31,60 +38,143 @@ object CommandValidator {
             }
 
             "tapCoordinate", "longPressCoordinate" -> {
-                requireArg(args, "x") to requireArg(args, "y")
-                Validation.ok()
+                val xr = requireArg(args, "x")
+                if (!xr.valid) return xr
+                requireArg(args, "y")
             }
 
             "swipe", "scroll" -> {
-                requireArg(args, "direction")
+                Validation.ok()
             }
 
             "gesturePath" -> {
                 requireArg(args, "points")
             }
 
-            "launchApp" -> {
-                requireArg(args, "packageName") to requireArg(args, "appName")
+            "pinch", "zoom", "doubleTap" -> {
                 Validation.ok()
             }
 
-            "openUrl" -> {
-                requireArg(args, "url")
-            }
-
-            "searchBrowser" -> {
-                requireArg(args, "query")
-            }
-
-            "submitForm", "fillForm" -> {
-                requireArg(args, "fields")
-            }
-
-            "openSettingsPage" -> {
-                requireArg(args, "page")
-            }
-
+            // ---- gesture recorder ----
             "recordGesture" -> {
                 requireArg(args, "durationMs")
             }
-
-            "createTask", "scheduleTask" -> {
-                requireArg(args, "workflow")
-            }
-
-            "startWorkflow", "runWorkflow" -> {
-                requireArg(args, "workflow")
-            }
-
-            "takePhoto" -> {
-                requireArg(args, "camera")
-            }
-
-            "recognizeText", "readScreenText" -> {
+            "stopGestureRecording", "listGestures", "getGesture", "saveGesture",
+            "renameGesture", "duplicateGesture", "deleteGesture", "importGesture",
+            "exportGesture", "replayGesture" -> {
                 Validation.ok()
             }
 
-            "exportLogs" -> {
+            // ---- apps ----
+            "launchApp" -> {
+                Validation.ok()
+            }
+            "launchAppByName", "listApps", "currentApp", "openAppInfo",
+            "openAppPermissions", "openNotificationSettings", "openBatterySettings",
+            "stopApp" -> {
+                Validation.ok()
+            }
+
+            // ---- browser ----
+            "openUrl" -> {
+                requireArg(args, "url")
+            }
+            "searchBrowser", "searchInBrowser" -> {
+                requireArg(args, "query")
+            }
+            "readVisibleText", "clickLink", "browserScroll", "verifyNavigation" -> {
+                Validation.ok()
+            }
+
+            // ---- forms ----
+            "submitForm", "fillForm" -> {
+                requireArg(args, "fields")
+            }
+            "detectForm" -> {
+                Validation.ok()
+            }
+
+            // ---- settings ----
+            "openSettingsPage" -> {
+                requireArg(args, "page")
+            }
+            "setBrightness", "getBrightness", "setVolume", "getVolume" -> {
+                Validation.ok()
+            }
+
+            // ---- accessibility service ----
+            "accessibilityStatus", "globalAction", "pressBack", "pressHome",
+            "openAccessibilitySettings" -> {
+                Validation.ok()
+            }
+
+            // ---- camera / microphone ----
+            "takePhoto" -> {
+                requireArg(args, "camera")
+            }
+            "cameraPermissionStatus", "startRecording", "stopRecording",
+            "micPermissionStatus", "microphoneStatus" -> {
+                Validation.ok()
+            }
+
+            // ---- vision / OCR ----
+            "recognizeText", "readScreenText", "ocrScreen", "performOCR",
+            "visualDetect", "screenCaptureStatus" -> {
+                Validation.ok()
+            }
+
+            "getScreenContext" -> {
+                Validation.ok()
+            }
+
+            // ---- system status / logs / security ----
+            "getAutomationStatus", "getDeviceCapabilities", "getExecutionLogs",
+            "exportLogs", "clearExecutionLogs", "getPermissionStatus",
+            "getSecurityStatus", "isBiometricAvailable", "biometricStatus",
+            "startAutomation", "stopAutomation", "getActiveWorkflow" -> {
+                Validation.ok()
+            }
+
+            // ---- cloud sync ----
+            "getSyncStatus", "setSyncEnabled", "setSyncEndpoint", "syncNow" -> {
+                Validation.ok()
+            }
+
+            // ---- tasks & workflows ----
+            "createTask", "scheduleTask" -> {
+                requireArg(args, "workflow")
+            }
+            "startWorkflow", "runWorkflow" -> {
+                requireArg(args, "workflow")
+            }
+            "listTasks", "updateTask", "deleteTask", "cancelTask", "enableTask",
+            "disableTask", "taskHistory", "executeTask" -> {
+                Validation.ok()
+            }
+
+            "saveWorkflow", "listWorkflows", "getWorkflow", "workflowVersions",
+            "restoreWorkflowVersion", "deleteWorkflow" -> {
+                Validation.ok()
+            }
+
+            // ---- WhatsApp-specific automation (automation/apps/WhatsAppAutomation.kt) ----
+            "openWhatsApp", "closeWhatsApp", "goBack", "getCurrentScreen",
+            "openChats", "openStatus", "openCalls", "openSearch", "openNewChat",
+            "search", "clearSearch", "openSearchResult", "openChat", "openGroup",
+            "sendMessage", "sendMultilineMessage",
+            "replyToMessage", "forwardMessage", "copyMessage", "deleteMessage",
+            "starMessage", "reactToMessage", "selectMessage",
+            "openContactInfo", "openGroupInfo",
+            "muteChat", "unmuteChat", "pinChat", "unpinChat",
+            "archiveChat", "unarchiveChat", "markChatRead", "markChatUnread",
+            "clearChat", "deleteChat", "leaveGroup",
+            "sendPhoto", "sendVideo", "sendDocument", "sendMedia", "openCamera", "cancelMediaSelection",
+            "startVoiceMessage", "stopVoiceMessage", "sendVoiceMessage", "cancelVoiceMessage",
+            "openStatusViewer", "nextStatus", "previousStatus", "replyToStatus",
+            "createTextStatus", "createPhotoStatus", "createVideoStatus", "publishStatus",
+            "startVoiceCall", "startVideoCall", "endCall", "openCallInfo",
+            "openSettings", "openSettingsSection",
+            "tap", "longPress", "scrollUntilFound", "scrollToTop", "scrollToBottom" -> {
                 Validation.ok()
             }
 
@@ -124,7 +214,3 @@ object CommandValidator {
         return Validation.ok()
     }
 }
-
-/** Little helper so the two-arg `to` chaining above reads naturally. */
-private infix fun CommandValidator.Validation.to(other: CommandValidator.Validation): CommandValidator.Validation =
-    if (!this.valid) this else other

@@ -50,6 +50,9 @@ class ZoyaBridgePlugin : Plugin() {
         super.load()
         // Defensive: never let a startup failure crash the host activity.
         runCatching {
+            com.zoya.ai.assistant.automation.AutomationRegistry.register(
+                com.zoya.ai.assistant.automation.apps.WhatsAppAutomation()
+            )
             AutomationEngine.init(context)
             AutomationEngine.get().resetCancellation()
             bridge.activity?.let { AutomationEngine.get().setActivity(it) }

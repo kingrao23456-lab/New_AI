@@ -228,6 +228,44 @@ export function useLiveSession() {
                     },
                     required: []
                   }
+                },
+                {
+                  name: "whatsAppAction",
+                  description: "Controls WhatsApp specifically: opening chats, sending messages/media, replying, reacting, status updates, calls, groups, search and settings. Use this instead of controlScreenAction whenever the user's request is about WhatsApp. Destructive actions (delete message, delete/clear chat, leave group, send media) require confirmed=true — if you don't already have the user's explicit confirmation for those, first ask them, then call again with confirmed=true.",
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      action: {
+                        type: Type.STRING,
+                        description: "One of: 'openWhatsApp', 'closeWhatsApp', 'goBack', 'getCurrentScreen', 'openChats', 'openStatus', 'openCalls', 'openSearch', 'openNewChat', 'search', 'openChat', 'sendMessage', 'replyToMessage', 'forwardMessage', 'copyMessage', 'deleteMessage', 'starMessage', 'reactToMessage', 'openContactInfo', 'openGroupInfo', 'muteChat', 'unmuteChat', 'pinChat', 'unpinChat', 'archiveChat', 'markChatRead', 'clearChat', 'deleteChat', 'leaveGroup', 'sendPhoto', 'sendVideo', 'sendDocument', 'openCamera', 'startVoiceMessage', 'stopVoiceMessage', 'cancelVoiceMessage', 'openStatusViewer', 'nextStatus', 'previousStatus', 'replyToStatus', 'createTextStatus', 'publishStatus', 'startVoiceCall', 'startVideoCall', 'endCall', 'openSettings', 'openSettingsSection', 'scrollUntilFound', 'scrollToTop', 'scrollToBottom'."
+                      },
+                      target: {
+                        type: Type.STRING,
+                        description: "The contact or group name to act on, where relevant (e.g. for openChat, sendMessage, startVoiceCall)."
+                      },
+                      message: {
+                        type: Type.STRING,
+                        description: "Message text to send, for 'sendMessage' or 'replyToMessage'."
+                      },
+                      messageText: {
+                        type: Type.STRING,
+                        description: "The visible text of an existing chat message to act on, for 'replyToMessage', 'forwardMessage', 'copyMessage', 'deleteMessage', 'starMessage', 'reactToMessage'."
+                      },
+                      caption: {
+                        type: Type.STRING,
+                        description: "Optional caption for media being sent."
+                      },
+                      section: {
+                        type: Type.STRING,
+                        description: "Settings section label to open, for 'openSettingsSection' (e.g. 'Privacy', 'Notifications')."
+                      },
+                      confirmed: {
+                        type: Type.BOOLEAN,
+                        description: "Set true only after the user has explicitly confirmed a destructive action (delete, clear chat, leave group, send media/document)."
+                      }
+                    },
+                    required: ["action"]
+                  }
                 }
               ]
             }
@@ -410,6 +448,45 @@ export function useLiveSession() {
                         functionResponses: [
                           {
                             name: "readScreen",
+                            response: out,
+                            id: call.id
+                          }
+                        ]
+                      });
+                    });
+                  });
+                } else if (call.name === "whatsAppAction") {
+                  const waArgs = call.args as any;
+                  const action = waArgs.action;
+
+                  const runWhatsApp = async (): Promise<{ success: boolean; message: string }> => {
+                    if (!isNative()) {
+                      return { success: false, message: "WhatsApp automation is only available in the installed Android app, not in the browser." };
+                    }
+                    const r = await execute(action, {
+                      target: waArgs.target,
+                      message: waArgs.message,
+                      messageText: waArgs.messageText,
+                      caption: waArgs.caption,
+                      section: waArgs.section,
+                      confirmed: waArgs.confirmed
+                    });
+                    if (r.ok) {
+                      return { success: true, message: (r.data as any)?.message ?? `WhatsApp action '${action}' completed.` };
+                    }
+                    return { success: false, message: `WhatsApp action '${action}' failed: [${r.error?.code ?? r.status}] ${r.error?.message ?? "unknown error"}` };
+                  };
+
+                  window.dispatchEvent(new CustomEvent("zoya_app_action", {
+                    detail: { type: "whatsapp_action", action }
+                  }));
+
+                  runWhatsApp().then((out) => {
+                    sessionPromise.then(session => {
+                      session.sendToolResponse({
+                        functionResponses: [
+                          {
+                            name: "whatsAppAction",
                             response: out,
                             id: call.id
                           }
